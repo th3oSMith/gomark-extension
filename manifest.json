@@ -1,0 +1,43 @@
+{
+  "manifest_version": 2,
+  "name": "Gomark",
+  "version": "1.0",
+ 
+  "description": "Gomark for FIrefox.",
+  "icons": {
+    "48": "icons/gomark-48.png"
+  },
+
+  "applications": {
+    "gecko": {
+      "id": "gormarks@th3osmith.ovh",
+      "strict_min_version": "45.0"
+    }
+  },
+
+  "permissions": [
+    "tabs",
+    "storage",
+    "notifications"
+  ],
+
+  "browser_action": {
+    "default_icon": "icons/gomark-32.png",
+    "default_title": "Gomark",
+    "default_popup": "popup/gomark.html"
+  },
+
+  "options_ui": {
+          "page": "options/options.html"
+  },
+
+  "page_action": {
+    "default_icon": "icons/toread-32.png",
+    "default_title": "Gomark"
+  },
+
+  "background": {
+    "scripts": ["pure.js", "background.js"]
+  }
+
+}
