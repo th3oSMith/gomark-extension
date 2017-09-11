@@ -45,7 +45,7 @@ class Panel {
         list.appendChild(createListElement(url, bookmark));
     }
 
-    document.getElementById('page').innerHTML = panel.currentPage + 1;
+    setText(document.getElementById('page'), panel.currentPage + 1);
 
     document.getElementById('forward').classList.remove("disabled");
     document.getElementById('backward').classList.remove("disabled");
@@ -117,7 +117,7 @@ function createListElement(url, bookmark) {
     tags += tag + ',';
   }
   tags = tags.slice(0, -1);
-  tagsDiv.innerHTML = tags;
+  setText(tagsDiv, tags);
 
   var siteSpan = document.createElement('span');
   var iconsSpan = document.createElement('span');
@@ -125,12 +125,12 @@ function createListElement(url, bookmark) {
 
   var linkA = document.createElement('a');
   linkA.href = "#";
-  linkA.innerHTML = title;
+  setText(linkA, title);
   linkA.addEventListener('click', createListener(link), false);
 
   var siteA = document.createElement('a');
   siteA.href = "#";
-  siteA.innerHTML = linkTitle;
+  setText(siteA, linkTitle);
   siteA.addEventListener('click', createListener(siteLink), false);
 
   var checkI = document.createElement('i');
@@ -290,6 +290,13 @@ document.getElementById('actionBar').addEventListener('keyup', searchKeyPress, f
 
 document.getElementById('refresh').addEventListener('click', deepRefreshLinks);
 
+function setText(container, text) {
+  if (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+
+  container.appendChild(document.createTextNode(text));
+}
 
 chrome.storage.local.get('options', (res) => {
   refreshLinks(reset=false);
