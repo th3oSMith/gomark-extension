@@ -213,7 +213,15 @@ function searchKeyPress(e) {
 
   if (e.target.value.length === 0) {
     refreshLinks(reset=false);
+    return;
   }
+
+  // Search if enter is pressed
+  if (e.which === 13 && e.shiftKey === false) {
+    searchBookmark();
+  }
+
+
 }
 
 function simulateClick(e) {
