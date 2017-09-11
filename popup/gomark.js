@@ -1,4 +1,5 @@
 /*jshint esnext: true */
+/*jshint elision: true */
 
 class Panel {
 
@@ -11,7 +12,11 @@ class Panel {
 
   setLinks(links) {
     this.numPages = Math.ceil(links.length / this.lpp);
+
+    this.numPages = Math.max(1, this.numPages);
+
     this.links = links;
+    this.currentPage = 0;
   }
 
   getCurrentPage() {
@@ -36,7 +41,7 @@ class Panel {
     const entries = this.getCurrentPage();
 
     for (var bookmark of entries) {
-        const url = bookmark.RawUrl; 
+        const url = bookmark.RawUrl;
         list.appendChild(createListElement(url, bookmark));
     }
 
@@ -45,7 +50,7 @@ class Panel {
     document.getElementById('forward').classList.remove("disabled");
     document.getElementById('backward').classList.remove("disabled");
 
-    if (panel.currentPage === panel.numPages - 1) {
+    if (panel.currentPage >= panel.numPages - 1) {
       document.getElementById('forward').classList.add("disabled");
     }
 
@@ -58,16 +63,32 @@ class Panel {
   }
 }
 
-let panel = new Panel(7);
+let panel;
+
+
+function parseUrl(url) {
+
+  let re = /(https?:\/\/(.+?))\//;
+  let m;
+
+  let output = {};
+
+  if ((m = re.exec(url)) !== null) {
+    return m;
+
+  }
+
+  return ['', ''];
+}
 
 function createListElement(url, bookmark) {
 
-  console.log("Draw List Element");
+  const title = bookmark.Title;
+  const link = url;
 
-  const title = bookmark.Title; 
-  const link = url; 
-  const linkTitle = bookmark.Info.Url.Host;
-  const siteLink = bookmark.Info.Url.Scheme + "://" + bookmark.Info.Url.Host;
+  let linkTitle, siteLink;
+
+  [, siteLink, linkTitle] = parseUrl(url);
 
   var listDiv = document.createElement('div');
   listDiv.className = 'list-entry';
@@ -90,7 +111,7 @@ function createListElement(url, bookmark) {
   tagsDiv.id = 'tags-' + url;
 
   tags = '';
-  for (var tag in bookmark.Info.Tags) {
+  for (var tag in bookmark.Tags) {
     if (tag === 'toread')
       continue;
     tags += tag + ',';
@@ -146,9 +167,6 @@ function createListElement(url, bookmark) {
 }
 
 function drawList(entries) {
-
-  console.log('drawing list');
-
   panel.setLinks(entries);
   panel.draw();
 }
@@ -162,7 +180,7 @@ function cleanList() {
 }
 
 function refreshLinks(reset=false) {
-  chrome.runtime.sendMessage(message={action: "list", reset}, responseCallback=drawList);
+  chrome.runtime.sendMessage(message={action: "list", reset, tags: ['toread']}, responseCallback=drawList);
 }
 
 function createListener(link) {
@@ -213,6 +231,7 @@ function createTagEditer(url) {
 
         e.preventDefault();
         rawTags = e.target.innerHTML;
+        rawTags = rawTags.replace(/(<([^>]+)>)/ig,"");
         tags = rawTags.split(",");
 
         chrome.runtime.sendMessage(message={url, action: 'edit', tags}, responseCallback=drawList);
@@ -225,7 +244,6 @@ function addBookmark() {
 
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
     if (tabs.length === 1) {
-      console.log("Add new Bookmark");
       let url = tabs[0].url;
       let tags = document.getElementById('actionBar').value.split(',');
 
@@ -272,5 +290,9 @@ document.getElementById('actionBar').addEventListener('keyup', searchKeyPress, f
 
 document.getElementById('refresh').addEventListener('click', deepRefreshLinks);
 
-refreshLinks(reset=false);
+
+chrome.storage.local.get('options', (res) => {
+  refreshLinks(reset=false);
+  panel = new Panel(res.options.linkPerPage);
+});
 

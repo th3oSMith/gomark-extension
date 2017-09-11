@@ -27,9 +27,7 @@ class PureMsg {
         tmp[map][k] = v;
       }
     }
-
     return JSON.stringify(tmp);
-
   }
 
 }
@@ -37,7 +35,7 @@ class PureMsg {
 // Pure Websocket Link
 // Used to wrap request inside a promise object
 class PureConn {
-  
+
   openWebsocket() {
     this.connecting = true;
     this.sock = new WebSocket(this.url);
@@ -52,7 +50,6 @@ class PureConn {
     };
 
     this.sock.onerror = (error) => {
-      console.log(error);
       this.errorCb({
         type: "WebsocketError",
         message: "Error in communicating with the server"
@@ -61,13 +58,11 @@ class PureConn {
     };
 
     // Wait for response message to set clientId and create real receiver
-    
+
     this.sock.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       this.clientId = msg.ClientId;
       this.connecting = false;
-
-      console.log("Client got ID: ", this.clientId);
 
       this.sock.onmessage = (event) => {
         let msg = JSON.parse(event.data);
@@ -120,7 +115,7 @@ class PureConn {
     this.password = password;
     this.errorCb = errorCb || function() {};
 
-    this.requestQueue = new Set(); 
+    this.requestQueue = new Set();
 
     this.openWebsocket();
   }
@@ -161,10 +156,29 @@ class PureConn {
 
     // Create the handler
     this.sock.send(req.serialize());
-    console.log(req.serialize());
-
     return promise;
   }
+}
+
+function processResponse(r) {
+
+  // Replace the tag list by a set
+  let result = r.ResponseMap.result;
+  let output = {};
+
+  for (var re in result) {
+    // Copy the object
+    let tmp = Object.assign({}, result[re]);
+    tmp.Tags = {};
+
+    for (var tag of result[re].Tags) {
+      tmp.Tags[tag] = true;
+    }
+
+    output[re] = tmp;
+  }
+  return output;
+
 }
 
 class Gomark {
@@ -174,6 +188,11 @@ class Gomark {
   }
 
   error(obj) {
+
+    if (obj.type == "RetrieveError" && obj.code !== 403) {
+      return;
+    }
+
     chrome.notifications.create({
       type: "basic",
       title: "Gomarks Error",
@@ -193,7 +212,18 @@ class Gomark {
     msg.RequestMap = reqMap;
 
     return this.connection.request(msg).then((r) => {
-      return r.ResponseMap.result;
+      return processResponse(r);
+    }, (r) => {
+      for (let log of r.LogList || []) {
+        if (log.Level === 0) {
+          this.error({
+            type: "RetrieveError",
+            message: log.Message,
+            code: log.Code
+          });
+        }
+      }
+    throw(r);
     });
   }
 
@@ -209,26 +239,28 @@ class Gomark {
     };
 
     bookmark.tags = tags;
-    
+
     const reqMap = new Map();
     reqMap.set("data", bookmark);
-    
+
     msg.RequestMap = reqMap;
 
     return this.connection.request(msg).then( (result) => {
-      return result.ResponseMap.result;
+      return processResponse(result);
     }, (r) => {
       for (let log of r.LogList || []) {
         if (log.Level === 0) {
           this.error({
-            type: "RequestError",
-            message: log.Message
+            type: "CreateError",
+            message: log.Message,
+            code: log.Code
           });
         }
       }
+    throw(r);
     });
   }
-  
+
   edit(url, tags, add_tags, del_tags) {
 
     let msg = new PureMsg();
@@ -239,29 +271,31 @@ class Gomark {
       url,
       tags
     };
-    
+
     const reqMap = new Map();
     reqMap.set("url", url);
     reqMap.set("data", bookmark);
     reqMap.set("add_tags", add_tags);
     reqMap.set("del_tags", del_tags);
-    
+
     msg.RequestMap = reqMap;
 
     return this.connection.request(msg).then( (result) => {
-      return result.ResponseMap.result;
+      return processResponse(result);
     }, (r) => {
       for (let log of r.LogList || []) {
         if (log.Level === 0) {
           this.error({
-            type: "RequestError",
-            message: log.Message
+            type: "UpdateError",
+            message: log.Message,
+            code: log.Code
           });
         }
       }
+    throw(r);
     });
   }
-  
+
   del(url) {
 
     let msg = new PureMsg();
@@ -284,15 +318,16 @@ class Gomark {
       for (let log of r.LogList || []) {
         if (log.Level === 0) {
           this.error({
-            type: "RequestError",
-            message: log.Message
+            type: "DeleteError",
+            message: log.Message,
+            code: log.Code
           });
         }
       }
+    throw(r);
     });
 
   }
-
 
 }
 

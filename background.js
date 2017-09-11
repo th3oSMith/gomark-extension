@@ -33,16 +33,16 @@ class BookmarkStore {
   }
 
   add(b) {
-    if (this.bookmarks.has(b.RawUrl)) {
-      this.bookmarks.set(b.RawUrl, b);
+    if (this.bookmarks.has(b.Url)) {
+      this.bookmarks.set(b.Url, b);
       
       for (var i in this.orderedBookmarks) {
-        if (this.orderedBookmarks[i].RawUrl === b.RawUrl) {
+        if (this.orderedBookmarks[i].Url === b.Url) {
           this.orderedBookmarks[i] = b;
         }
       }
     } else {
-      this.bookmarks.set(b.RawUrl, b);
+      this.bookmarks.set(b.Url, b);
       this.orderedBookmarks.unshift(b);
     }
   }
@@ -56,13 +56,24 @@ class BookmarkStore {
     let books = [];
 
     for (var b of this.orderedBookmarks) {
-      if (b.Info.Tags.toread) {
+      if (b.Tags.toread) {
         books.push(b);
       }
     }
 
     return books;
 
+  }
+
+  getByCriteria() {
+
+    let criteria = this.criteria.tags;
+
+    if (this.criteria.length === 0) {
+      return this.orderedBookmarks;
+    }
+
+    return this.getSearch(criteria);
   }
 
   getSearch(tags) {
@@ -74,7 +85,7 @@ class BookmarkStore {
 
 
       for (var t of tags) {
-        if (b.Info.Tags[t] || b.Title.toLowerCase().includes(t)) {
+        if (b.Tags[t] || b.Title.toLowerCase().includes(t.toLowerCase())) {
           count++;
         }
       }
@@ -87,6 +98,7 @@ class BookmarkStore {
   }
 
   del(url) {
+
   
     if (!this.bookmarks.has(url)) {
       return;
@@ -95,7 +107,7 @@ class BookmarkStore {
     this.bookmarks.delete(url);
 
     for (var i in this.orderedBookmarks) {
-      if (this.orderedBookmarks[i].RawUrl === url) {
+      if (this.orderedBookmarks[i].Url === url) {
         this.orderedBookmarks.splice(i, 1);
         return;
       }
@@ -122,13 +134,10 @@ function tabLightUpdate(info) {
 
   const tab = browser.tabs.get(info.tabId);
   tab.then((r) => {
-    console.log("light");
     if (store.has(r.url)) {
-      console.log("Haz");
       chrome.pageAction.setIcon({tabId: r.id, path: "icons/toread-32.png"});
       chrome.pageAction.show(r.id);
     } else {
-      console.log("NoHaz");
       chrome.pageAction.setIcon({tabId: r.id, path: "icons/read-32.png"});
       chrome.pageAction.show(r.id);
     }
@@ -137,27 +146,28 @@ function tabLightUpdate(info) {
 }
 
 function pageActionClicked(tab) {
-  console.log("Tab " + tab.id + " --> " + tab.url);
- 
+
   let ok;
   
   if (!store.has(tab.url)) {
     ok = gomark.add(tab.url, ["toread"]);
     chrome.pageAction.setIcon({tabId: tab.id, path: "icons/toread-32.png"});
     ok.then(createIconSetter(tab.id, "icons/toread-32.png", tab.url, true),
-            createIconSetter(tab.id, "icons/read-32.png"), tab.url, false);
+            createIconSetter(tab.id, "icons/read-32.png", tab.url, false));
   } else {
     ok = gomark.del(tab.url);
     chrome.pageAction.setIcon({tabId: tab.id, path: "icons/read-32.png"});
     ok.then(createIconSetter(tab.id, "icons/read-32.png", tab.url, false),
-            createIconSetter(tab.id, "icons/toread-32.png"), tab.url, true);
+            createIconSetter(tab.id, "icons/toread-32.png", tab.url, true));
   }
 }
 
 function createIconSetter(tabId, path, url, set) {
   return function (r) {
+
     chrome.pageAction.setIcon({tabId, path});
     chrome.pageAction.show(tabId);
+
     if (set) {
       store.add(r[url]);
     } else {
@@ -171,6 +181,7 @@ function perform(message, sender, responseSender) {
 
   switch (message.action) {
     case "list":
+      store.criteria = {tags: message.tags};
       if (message.reset) {
         store.reset().then((r) => {
           chrome.notifications.create({
@@ -178,22 +189,23 @@ function perform(message, sender, responseSender) {
             title: "Gomark",
             message: "Links updated"
           });
-          responseSender(store.getToRead());
+          responseSender(store.getByCriteria());
         });
         return true;
       }
-      responseSender(store.getToRead());
+      responseSender(store.getByCriteria());
       break;
     case "read":
       gomark.edit(message.url, [], [], ["toread"]).then((r) => {
         store.add(r[message.url]);
-        responseSender(store.getToRead());
+        responseSender(store.getByCriteria());
       }, (r) => {
-        responseSender(store.getToRead());
+        responseSender(store.getByCriteria());
       });
       break;
     case "search":
-      responseSender(store.getSearch(message.tags));
+      store.criteria = {tags: message.tags};
+      responseSender(store.getByCriteria());
       break;
     case "add":
       gomark.add(message.url, message.tags).then((r) => {
@@ -203,17 +215,17 @@ function perform(message, sender, responseSender) {
             chrome.pageAction.setIcon({tabId: t.id, path: "icons/toread-32.png"});
           }
         });
-        responseSender(store.getToRead());
+        responseSender(store.getByCriteria());
       }, (r) => {
-        responseSender(store.getToRead());
+        responseSender(store.getByCriteria());
       });
       break;
     case "edit":
       gomark.edit(message.url, message.tags, [], ["toread"]).then((r) => {
         store.add(r[message.url]);
-        responseSender(store.getToRead());
+        responseSender(store.getByCriteria());
       }, (r) => {
-        responseSender(store.getToRead());
+        responseSender(store.getByCriteria());
       });
       break;
     case "delete":
@@ -224,9 +236,9 @@ function perform(message, sender, responseSender) {
             chrome.pageAction.setIcon({tabId: t.id, path: "icons/read-32.png"});
           }
         });
-        responseSender(store.getToRead());
+        responseSender(store.getByCriteria());
       }, (r) => {
-        responseSender(store.getToRead());
+        responseSender(store.getByCriteria());
       });
       break;
     case "init":
@@ -238,10 +250,10 @@ function perform(message, sender, responseSender) {
 
 }
 
-chrome.tabs.onUpdated.addListener(tabUpdate);
+browser.tabs.onUpdated.addListener(tabUpdate);
 browser.tabs.onActivated.addListener(tabLightUpdate);
 browser.pageAction.onClicked.addListener(pageActionClicked);
-chrome.runtime.onMessage.addListener(perform);
+browser.runtime.onMessage.addListener(perform);
 
 let gomark, store;
 
