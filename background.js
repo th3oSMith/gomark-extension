@@ -258,6 +258,27 @@ browser.runtime.onMessage.addListener(perform);
 let gomark, store;
 
 function init(options) {
+
+  browser.notifications.onClicked.addListener((id) => {
+    if (id === 'noServer') {
+      browser.runtime.openOptionsPage();
+    }
+  })
+
+  if (options === null || options.url === '') {
+    tmp = chrome.notifications.create('noServer', {
+      type: "basic",
+      title: "Gomark - Error",
+      message: "You need to configure the server in the options (click to open)"
+    });
+
+    tmp.then((ok) => {
+      console.log('notif OK');
+    }, (err) => {
+      console.log('notif KO', err);
+    });
+  }
+
   if (options.username !== '') {
     gomark = new Gomark(options.url, options.username, options.password);
   } else {
@@ -267,8 +288,10 @@ function init(options) {
   store = new BookmarkStore();
 }
 
-chrome.storage.local.get('options', (res) => {
+browser.storage.local.get('options').then((res) => {
   init(res.options);
+}, (err) => {
+  init(null);
 });
 
 
