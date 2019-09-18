@@ -171,7 +171,7 @@ function processResponse(r) {
     let tmp = Object.assign({}, result[re]);
     tmp.Tags = {};
 
-    for (var tag of result[re].Tags) {
+    for (var tag of result[re].Tags || []) {
       tmp.Tags[tag] = true;
     }
 
